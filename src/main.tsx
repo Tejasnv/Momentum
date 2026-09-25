@@ -7,7 +7,7 @@ import { MomentPage, PlannerProvider } from "./features/planner";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <PlannerProvider>
         <Routes>
           <Route path="/" element={<App />} />
