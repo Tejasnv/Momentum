@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { fmtLongDate } from "../lib/date";
 import { cx, display } from "../lib/ui";
+import { SearchIcon } from "./Icons";
 
 interface HeaderProps {
   today: Date;
@@ -10,6 +11,8 @@ interface HeaderProps {
   openTasks: number;
   /** On pages other than the dashboard the wordmark links home, and the page's own h1 is the main heading. */
   homeLink?: boolean;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
   /** Page actions shown after the stats, e.g. Today + New moment. */
   children: ReactNode;
 }
@@ -20,6 +23,8 @@ export default function Header({
   weekHours,
   openTasks,
   homeLink = false,
+  searchValue,
+  onSearchChange,
   children,
 }: HeaderProps) {
   const wordmark = cx(display, "text-[44px] leading-none tracking-[-0.01em]");
@@ -35,6 +40,21 @@ export default function Header({
         )}
         <span className="text-muted">{fmtLongDate(today)}</span>
       </div>
+      {onSearchChange && (
+        <div className="mx-6 min-w-0 flex-1 max-[1180px]:mx-0 max-[1180px]:w-full max-[1180px]:flex-none">
+          <label className="flex h-11 w-full min-w-0 items-center gap-2 rounded-full border border-line-strong bg-card px-3 text-muted focus-within:border-accent">
+            <SearchIcon />
+            <input
+              type="search"
+              aria-label="Search meetings and tasks"
+              placeholder="Search moments..."
+              className="w-full min-w-0 border-none bg-transparent text-[13px] text-ink outline-none placeholder:text-faint"
+              value={searchValue ?? ""}
+              onChange={(event) => onSearchChange(event.target.value)}
+            />
+          </label>
+        </div>
+      )}
       <div className="flex items-center gap-2.5 max-[1180px]:flex-wrap">
         <Stat value={weekCount} label="moments this week" />
         <Stat value={`${weekHours} h`} label="booked" />

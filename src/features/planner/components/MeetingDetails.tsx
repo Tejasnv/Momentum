@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CATEGORIES } from '../data/sampleData';
 import { fmtDuration, fmtLongDate, fmtTime, relativeLabel } from '../lib/date';
-import { TONE, btn, btnOutline, btnPrimary, btnRect, card, cx, display, label, rel, small } from '../lib/ui';
+import { TONE, btn, btnOutline, btnPrimary, btnRect, btnSmall, card, cx, display, label, rel, small } from '../lib/ui';
 import type { Meeting, Series } from '../types';
 import Dot from './Dot';
 import { ArrowRight, CalendarIcon, ClockIcon, PinIcon, RepeatIcon, UserIcon, VideoIcon } from './Icons';
@@ -20,11 +21,15 @@ interface MeetingDetailsProps {
   meeting: Meeting | null;
   series: Series | null;
   onEdit: (m: Meeting) => void;
+  onDelete: (id: string) => void;
   now: Date;
   today: Date;
 }
 
-export default function MeetingDetails({ meeting: m, series, onEdit, now, today }: MeetingDetailsProps) {
+export default function MeetingDetails({ meeting: m, series, onEdit, onDelete, now, today }: MeetingDetailsProps) {
+  // Keyed by meeting so the prompt closes when another moment is selected.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
   if (!m) {
     return (
       <section className={section} aria-label="Moment details">
@@ -69,7 +74,32 @@ export default function MeetingDetails({ meeting: m, series, onEdit, now, today 
         <Link to={`/moments/${m.id}`} className={cx(btn, btnRect, btnOutline, 'no-underline')}>
           Open moment<ArrowRight />
         </Link>
+        {confirmingId !== m.id && (
+          <button
+            type="button"
+            className={cx(btn, btnRect, btnOutline, 'text-overdue')}
+            onClick={() => setConfirmingId(m.id)}
+          >
+            Delete
+          </button>
+        )}
       </div>
+
+      {confirmingId === m.id && (
+        <div role="alertdialog" aria-labelledby="delete-moment-msg" className="flex flex-col gap-2.5 rounded-xl border border-line-strong bg-band p-3.5">
+          <p id="delete-moment-msg" className="text-[13px] leading-[1.45]">
+            Delete <strong>{m.title}</strong>? This can’t be undone. Linked tasks will be kept.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className={cx(btnSmall, btnRect, 'border-none bg-overdue text-white hover:brightness-110')} onClick={() => onDelete(m.id)}>
+              Delete moment
+            </button>
+            <button type="button" className={cx(btnSmall, btnRect, btnOutline)} onClick={() => setConfirmingId(null)} autoFocus>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={block}>
         <h3 className={label}>Attendees · {m.people.length}</h3>

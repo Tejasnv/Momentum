@@ -37,6 +37,10 @@ export default function PlannerProvider({ children }: { children: ReactNode }) {
     addMeeting: (m) => setMeetings((ms) => [...ms, withTiming(m)].sort(byStart)),
     updateMeeting: (id, patch) =>
       setMeetings((ms) => ms.map((m) => (m.id === id ? withTiming({ ...m, ...patch }) : m)).sort(byStart)),
+    deleteMeeting: (id) => {
+      setMeetings((ms) => ms.filter((m) => m.id !== id));
+      setTasks((ts) => ts.map((t) => (t.meetingId === id ? { ...t, meetingId: null } : t)));
+    },
     ensureSeries,
   };
 

@@ -23,6 +23,8 @@ const DEFAULT_MINUTES = 30;
 
 const minutesOfDay = (d: Date) => d.getHours() * 60 + d.getMinutes();
 const parseAgenda = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
+const searchableText = (values: (string | null | undefined)[]) =>
+  values.filter(Boolean).join(' ').toLocaleLowerCase();
 
 const newDraft = (day: Date, startMin: number): Draft => ({
   editingId: null,
@@ -40,7 +42,8 @@ const newDraft = (day: Date, startMin: number): Draft => ({
 });
 
 export default function Planner() {
-  const { today, meetings, tasks, series, setTasks, addMeeting, updateMeeting, ensureSeries } = usePlanner();
+  const { today, meetings, tasks, series, setTasks, addMeeting, updateMeeting, deleteMeeting, ensureSeries } =
+    usePlanner();
 
   // "now" ticks every minute so the time line and relative labels stay fresh.
   const [now, setNow] = useState(() => new Date());
@@ -65,13 +68,49 @@ export default function Planner() {
   });
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearchQuery(searchInput.trim().toLocaleLowerCase()), 300);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
 
   const meetingsById = useMemo(() => Object.fromEntries(meetings.map((m) => [m.id, m])), [meetings]);
+  const filteredMeetings = useMemo(() => {
+    if (!searchQuery) return meetings;
+    return meetings.filter((m) => {
+      const seriesName = series.find((s) => s.id === m.seriesId)?.name;
+      return searchableText([
+        m.title, m.category, m.location, m.organizer, m.notes, m.dayKey,
+        m.start.toLocaleString(), m.end.toLocaleString(), String(m.minutes), String(m.hasVideo),
+        ...m.people.flatMap((person) => [person.name, person.status]),
+        ...m.agenda,
+        seriesName,
+      ]).includes(searchQuery);
+    });
+  }, [meetings, searchQuery, series]);
+  const filteredMeetingsById = useMemo(
+    () => Object.fromEntries(filteredMeetings.map((m) => [m.id, m])),
+    [filteredMeetings],
+  );
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery) return tasks;
+    return tasks.filter((t) => {
+      const seriesName = series.find((s) => s.id === t.seriesId)?.name;
+      const linkedMeeting = t.meetingId ? meetingsById[t.meetingId] : null;
+      return searchableText([
+        t.title, t.priority, t.category, t.due.toLocaleDateString(), seriesName,
+        linkedMeeting?.title,
+      ]).includes(searchQuery);
+    });
+  }, [meetingsById, searchQuery, series, tasks]);
+
   const meetingsByDay = useMemo(() => {
     const map: MeetingsByDay = {};
-    meetings.forEach((m) => (map[m.dayKey] ??= []).push(m));
+    filteredMeetings.forEach((m) => (map[m.dayKey] ??= []).push(m));
     return map;
-  }, [meetings]);
+  }, [filteredMeetings]);
 
   const openSeries = openSeriesOf(series, meetings, tasks, now);
 
@@ -188,11 +227,17 @@ export default function Planner() {
     setDraft(null);
   };
 
+  const removeMeeting = (id: string) => {
+    deleteMeeting(id);
+    setDraft((d) => (d?.editingId === id ? null : d));
+    setParams({}, { replace: true });
+  };
+
   const toggleTask = (id: string) =>
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
 
-  const selectedMeeting = selectedId ? meetingsById[selectedId] : null;
-  const week = weekStats(meetings, selDate);
+  const selectedMeeting = selectedId ? filteredMeetingsById[selectedId] ?? null : null;
+  const week = weekStats(filteredMeetings, selDate);
 
   return (
     <div className="planner flex h-dvh min-h-[720px] flex-col gap-5 bg-ground p-6 font-body text-[14px] leading-[normal] tracking-normal text-ink scheme-light max-[1180px]:h-auto max-[1180px]:min-h-dvh">
@@ -200,7 +245,9 @@ export default function Planner() {
         today={today}
         weekCount={week.count}
         weekHours={week.hours}
-        openTasks={tasks.filter((t) => !t.done).length}
+        openTasks={filteredTasks.filter((t) => !t.done).length}
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
       >
         <button type="button" className={cx(btn, btnPill, btnOutline)} onClick={() => goToDate(today)}>Today</button>
         <button type="button" data-new-item className={cx(btn, btnPill, btnPrimary)} onClick={openDraftFromHeader}>
@@ -219,7 +266,7 @@ export default function Planner() {
             onPickDate={goToDate}
           />
           <UpcomingList
-            meetings={meetings}
+            meetings={filteredMeetings}
             now={now}
             today={today}
             selectedId={selectedId}
@@ -233,7 +280,7 @@ export default function Planner() {
           today={today}
           now={now}
           meetingsByDay={meetingsByDay}
-          tasks={tasks}
+          tasks={filteredTasks}
           selectedId={selectedId}
           selectedTaskId={selectedTaskId}
           onSelect={selectMeeting}
@@ -256,13 +303,14 @@ export default function Planner() {
             meeting={selectedMeeting}
             series={series.find((s) => s.id === selectedMeeting?.seriesId) ?? null}
             onEdit={editMeeting}
+            onDelete={removeMeeting}
             now={now}
             today={today}
           />
           <TaskList
-            tasks={tasks}
+            tasks={filteredTasks}
             today={today}
-            meetingsById={meetingsById}
+            meetingsById={filteredMeetingsById}
             selectedId={selectedTaskId}
             onToggle={toggleTask}
             onOpenMeeting={selectMeeting}
